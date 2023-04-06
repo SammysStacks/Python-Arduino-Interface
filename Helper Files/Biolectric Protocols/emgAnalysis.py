@@ -18,8 +18,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Import Files
-import _filteringProtocols as filteringMethods # Import Files with Filtering Methods
-        
+import _globalProtocol
+
 # ---------------------------------------------------------------------------#
 # ---------------------------------------------------------------------------#
 
@@ -27,23 +27,11 @@ import _filteringProtocols as filteringMethods # Import Files with Filtering Met
 # --------------------------------------------------------------------------- #
 # ------------------ User Can Edit (Global Variables) ----------------------- #
 
-class emgProtocol:
+class emgProtocol(_globalProtocol.globalProtocol):
     
-    def __init__(self, numPointsPerBatch = 3000, moveDataFinger = 10, numChannels = 2, plottingClass = None):
-        # Input Parameters
-        self.numChannels = numChannels            # Number of Bioelectric Signals
-        self.numPointsPerBatch = numPointsPerBatch        # The X-Wdith of the Plot (Number of Data-Points Shown)
-        self.moveDataFinger = moveDataFinger      # The Amount of Data to Stream in Before Finding Peaks
-        self.plotStreamedData = plottingClass != None  # Plot the Data
-        self.plottingClass = plottingClass
-                
-        # Define the class with all the filtering methods
-        self.filteringMethods = filteringMethods.filteringMethods()
-
+    def __init__(self, numPointsPerBatch = 3000, moveDataFinger = 10, numChannels = 2, plottingClass = None, readData = None):
         # Prediction Parameters
         self.gestureClasses = []
-        # Data Holders
-        self.previousDataRMS = {}
         
         # High Pass Filter Parameters
         self.f1 = 100; self.f3 = 50;
@@ -52,36 +40,14 @@ class emgProtocol:
         self.rmsWindow = 400; self.stepSize = 10;  # self.rmsWindow = 400; self.stepSize = 10;
         
         # Data Collection Parameters
-        self.highPassBuffer = max(self.rmsWindow + self.stepSize, 5000)  # Must be > rmsWindow + stepSize
+        self.dataPointBuffer = max(self.rmsWindow + self.stepSize, 5000)  # Must be > rmsWindow + stepSize
         self.peakDetectionBuffer = 2000  # Buffer in Case Peaks are Only Half Formed at Edges
         self.numPointsRMS = 5*max(1 + math.floor((numPointsPerBatch - self.rmsWindow) / self.stepSize), 0)         # Number of Root Mean Squared Data (After HPF) to Plot
-        
-        # Parameters That Rely on Sampling Frequency
-        if self.samplingFreq:
-            self.initParamsFromSamplingRate()
-        
-        # Prepare the Program to Begin Data Analysis
-        self.checkParams()              # Check to See if the User's Input Parameters Make Sense
-        self.resetGlobalVariables()     # Start with Fresh Inputs (Clear All Arrays/Values)
-                
-        # If Plotting, Define Class for Plotting Peaks
-        if self.plotStreamedData and numChannels != 0:
-            self.initPlotPeaks()
-            
-    def initParamsFromSamplingRate(self):
-        self.Wp = 2*math.pi*self.f1/self.samplingFreq
-        self.Ws = 2*math.pi*self.f3/self.samplingFreq
-        # Calculate Number of Streamed Points Per RMS Point
-        self.secondsPerPointRMS = self.stepSize/self.samplingFreq   # Seconds per Delta RMS Point
 
-    def resetGlobalVariables(self):
-        # Data to Read in
-        self.data = {'timePoints':[]}
-        for channelIndex in range(self.numChannels):
-            self.data['Channel'+str(1+channelIndex)] = []
-            # Hold Analysis Values
-            self.previousDataRMS[channelIndex] = []
+        # Initialize common model class
+        super().__init__(numPointsPerBatch, moveDataFinger, numChannels, plottingClass, readData)
         
+    def resetAnalysisVariables(self):        
         # Reset Mutable Variables
         self.xDataRMS = []              # Holder for Most Recent RMS Data
         self.groupWidthRMS = None       # The Number of Seconds for 1 Group
@@ -94,22 +60,22 @@ class emgProtocol:
         self.badPeakInd = [[] for _ in range(self.numChannels)]
         self.featureList = [[] for _ in range(self.numChannels)]
         self.timeDelayIndices = [[] for _ in range(self.numChannels)]
-                
-        # Close Any Opened Plots
-        if self.plotStreamedData:
-            plt.close()
-    
+        self.previousDataRMS = [[] for _ in range(self.numChannels)]
+            
     def checkParams(self):
         assert self.moveDataFinger < self.numPointsPerBatch, "You are Analyzing Too Much Data in a Batch. 'moveDataFinger' MUST be Less than 'numPointsPerBatch'"
         assert self.rmsWindow > self.stepSize, "'stepSize' Should NOT be Greater Than 'rmsWindow'. This Means You are JUMPING OVER Datapoints (Missing Point)."
-            
-    def setSamplingFrequency(self, startBPFindex):
-        # Caluclate the Sampling Frequency
-        self.samplingFreq = len(self.data[0][startBPFindex:])/(self.data[0][-1] - self.data[0][startBPFindex])
-        print("\n\tSetting Temperature Sampling Frequency to", self.samplingFreq)
-        print("\tFor Your Reference, If Data Analysis is Longer Than", self.moveDataFinger/self.samplingFreq, ", Then You Will NOT be Analyzing in Real Time")
-
+                
+    def setSamplingFrequencyParams(self):
+        self.Wp = 2*math.pi*self.f1/self.samplingFreq
+        self.Ws = 2*math.pi*self.f3/self.samplingFreq
+        # Calculate Number of Streamed Points Per RMS Point
+        self.secondsPerPointRMS = self.stepSize/self.samplingFreq   # Seconds per Delta RMS Point
+    
     def initPlotPeaks(self): 
+        # Establish pointers to the figure
+        self.fig = self.plottingClass.fig
+        axes = self.plottingClass.axes['emg'][0]
 
         # Specify Figure Asthetics
         self.peakCurrentRightColorOrder = {
@@ -129,10 +95,6 @@ class emgProtocol:
 
         # ------------------------------------------------------------------- #
         # --------- Plot Variables user Can Edit (Global Variables) --------- #
-
-        # Specify Figure aesthetics
-        figWidth = 14; figHeight = 10;
-        self.fig, axes = plt.subplots(self.numChannels, 2, sharey=False, sharex = 'col', figsize=(figWidth, figHeight))
         
         # Plot the Raw Data
         yLimLow = 0; yLimHigh = 5; 
@@ -140,72 +102,74 @@ class emgProtocol:
         self.bioelectricDataPlots = []; self.bioelectricPlotAxes = []
         for channelIndex in range(self.numChannels):
             # Create Plots
-            self.bioelectricPlotAxes.append(axes[channelIndex, 0])
+            if self.numChannels == 1:
+                self.bioelectricPlotAxes.append(axes[0])
+            else:
+                self.bioelectricPlotAxes.append(axes[channelIndex, 0])
             
-            # Plot Biolectic Signals
+            # Generate Plot
             self.bioelectricDataPlots.append(self.bioelectricPlotAxes[channelIndex].plot([], [], '-', c="tab:red", linewidth=1, alpha = 0.65)[0])
             self.timeDelayPlotsRaw.append(self.bioelectricPlotAxes[channelIndex].plot([], [], '-', c="blue", linewidth=2, alpha = 0.65)[0])
 
             # Set Figure Limits
             self.bioelectricPlotAxes[channelIndex].set_ylim(yLimLow, yLimHigh)
             # Label Axis + Add Title
-            self.bioelectricPlotAxes[channelIndex].set_title("Bioelectric Signal in Channel " + str(channelIndex + 1))
-            self.bioelectricPlotAxes[channelIndex].set_xlabel("Time (Seconds)", fontsize=10)
-            self.bioelectricPlotAxes[channelIndex].set_ylabel("Bioelectric Signal (Volts)")
-            
-        yLimitHighFiltered = 0.5;
+            self.bioelectricPlotAxes[channelIndex].set_ylabel("EMG Signal (Volts)", fontsize=13, labelpad = 10)
+
         # Create the Data Plots
-        self.filteredBioelectricPlotAxes = [] 
+        yLimLow = 0; yLimHigh = 0.5; 
         self.filteredBioelectricDataPlots = []
+        self.filteredBioelectricPlotAxes = [] 
         self.timeDelayPlotsRMS = []
         for channelIndex in range(self.numChannels):
             # Create Plot Axes
-            self.filteredBioelectricPlotAxes.append(axes[channelIndex, 1])
+            if self.numChannels == 1:
+                self.filteredBioelectricPlotAxes.append(axes[1])
+            else:
+                self.filteredBioelectricPlotAxes.append(axes[channelIndex, 1])
+            
             # Plot Flitered Peaks
             self.timeDelayPlotsRMS.append(self.filteredBioelectricPlotAxes[channelIndex].plot([], [], '-', c="blue", linewidth=2, alpha = 0.65)[0])
             self.filteredBioelectricDataPlots.append(self.filteredBioelectricPlotAxes[channelIndex].plot([], [], '-', c="tab:red", linewidth=1, alpha = 0.65)[0])
 
             # Set Figure Limits
-            self.filteredBioelectricPlotAxes[channelIndex].set_ylim(yLimLow, yLimitHighFiltered)
-            # Label Axis + Add Title
-            self.filteredBioelectricPlotAxes[channelIndex].set_title("Filtered Bioelectric Signal in Channel " + str(channelIndex + 1))
-            self.filteredBioelectricPlotAxes[channelIndex].set_xlabel("Root Mean Squared Data Point")
-            self.filteredBioelectricPlotAxes[channelIndex].set_ylabel("Filtered Signal (Volts)", fontsize=10)
-        
+            self.filteredBioelectricPlotAxes[channelIndex].set_ylim(yLimLow, yLimHigh)
         self.filteredBioelectricPeakPlots = [[] for _ in range(self.numChannels)]
+
+        # Tighten figure's white space (must be at the end)
+        self.plottingClass.fig.tight_layout(pad=2.0);
 
         # Tighten Figure White Space (Must be After wW Add Fig Info)
         self.fig.tight_layout(pad=2.0);
         self.fig.canvas.draw()
         
+    def filterData(self):
+        pass
     
     def analyzeData(self, dataFinger, predictionModel = None, actionControl = None):
         
         xPeaksHolder = []; yPeaksHolder = []; featureHolder = []; baselineHolder = []
-        # Get X Data: Shared Axis for All Channels
-        self.timePoints = self.data['timePoints'][dataFinger:dataFinger + self.numPointsPerBatch]
         # Add incoming Data to Each Respective Channel's Plot
         for channelIndex in range(self.numChannels):
             
-            # ---------------------- High pass Filter ----------------------- #
+            # ---------------------- Filter the Data ----------------------- #   
+            # Find the starting/ending points of the data to analyze
+            startFilterPointer = max(dataFinger - self.dataPointBuffer, 0)
+            dataBuffer = np.array(self.data[1][channelIndex][startFilterPointer:dataFinger + self.numPointsPerBatch])
+            timePoints = np.array(self.data[0][dataFinger:dataFinger + self.numPointsPerBatch])
+            
             # Find New Points That Need Filtering
-            totalPreviousPointsRMS = max(1 + math.floor((dataFinger + len(self.timePoints) - self.moveDataFinger - self.rmsWindow) / self.stepSize), 0) if dataFinger else 0
+            totalPreviousPointsRMS = max(1 + math.floor((dataFinger + len(timePoints) - self.moveDataFinger - self.rmsWindow) / self.stepSize), 0) if dataFinger else 0
             dataPointerRMS = self.stepSize*totalPreviousPointsRMS
-            # Add Buffer to New Points as HPF is Bad at Edge
-            startHPF = max(dataPointerRMS - self.highPassBuffer, 0)
             
+            # Get the Sampling Frequency from the First Batch (If Not Given)
             if not self.samplingFreq:
-                # Calculate Sampling Frequency
-                self.samplingFreq = len(self.data['timePoints'][startHPF:])/(self.data['timePoints'][-1] - self.data['timePoints'][startHPF])
-                print("\tSetting Sampling Frequency to", self.samplingFreq)
-                # Parameters That Rely on Sampling Rate
-                self.initParamsFromSamplingRate()
-            
-            # High Pass Filter to Remove Noise
-            numNewDataForRMS = dataFinger + len(self.timePoints) - dataPointerRMS
-            yDataBuffer = self.data['Channel' + str(channelIndex+1)][startHPF:dataFinger + len(self.timePoints)]
-            filteredData = self.highPassFilter(yDataBuffer)[-(numNewDataForRMS):]   
-            # --------------------------------------------------------------- #
+                self.setSamplingFrequency(startFilterPointer)
+                
+            # Filter the data.
+            numNewDataForRMS = dataFinger + len(timePoints) - dataPointerRMS
+            filteredData = self.highPassFilter(dataBuffer)[-(numNewDataForRMS):]   
+            # -------------------------------------------------------------- #
     
             # --------------------- Root Mean Squared ----------------------- #
             # Calculated the RMS and Add the Data to the Stored Buffer from the Last Round
@@ -215,17 +179,16 @@ class emgProtocol:
                 self.xDataRMS = self.xDataRMS[-len(dataRMS):]
             
             # Make Sure You are Saving Enough Points for the Next Round
-            savePointsRMS = self.peakDetectionBuffer + self.stepSize + self.highPassBuffer + self.numPointsRMS
+            savePointsRMS = self.peakDetectionBuffer + self.stepSize + self.dataPointBuffer + self.numPointsRMS
             self.previousDataRMS[channelIndex] = dataRMS[-savePointsRMS:] # Store RMS Data Needed for Next Round
             # --------------------------------------------------------------- #
             
             # ------------------- Plot Biolectric Signal -------------------- #
             if self.plotStreamedData:
-                # Get New Y Data
-                newYData = self.data['Channel' + str(channelIndex+1)][dataFinger:dataFinger + len(self.timePoints)]
+                dataBuffer = dataBuffer[-len(timePoints):]
                 # Plot Raw Bioelectric Data (Slide Window as Points Stream in)
-                self.bioelectricDataPlots[channelIndex].set_data(self.timePoints, newYData)
-                self.bioelectricPlotAxes[channelIndex].set_xlim(self.timePoints[0], self.timePoints[-1])
+                self.bioelectricDataPlots[channelIndex].set_data(timePoints, dataBuffer)
+                self.bioelectricPlotAxes[channelIndex].set_xlim(timePoints[0], timePoints[-1])
                 
                 # Plot the Filtered (RMS) Data
                 self.filteredBioelectricDataPlots[channelIndex].set_data(self.xDataRMS[-self.numPointsRMS:], dataRMS[-self.numPointsRMS:])
@@ -410,10 +373,10 @@ class emgProtocol:
                             groupPeakPlot.set_data(xPeaksNew, yPeaksNew)
                     
         # Update to Get New Data Next Round
-        if self.plotStreamedData:
-            self.fig.show()
-            self.fig.canvas.flush_events()
-            self.fig.canvas.draw()
+        # if self.plotStreamedData:
+        #     self.fig.show()
+        #     self.fig.canvas.flush_events()
+        #     self.fig.canvas.draw()
         # -------------------------------------------------------------------#
         
 
@@ -488,7 +451,7 @@ class emgProtocol:
             RMSData.append(np.linalg.norm(inputWindow, ord=2)/normalization)
             # Add to xData
             if channelIndex == 0:
-                 self.xDataRMS.append(self.data['timePoints'][dataPointerRMS + i*stepSize + rmsWindow - 1])
+                self.xDataRMS.append(self.data[0][dataPointerRMS + i*stepSize + rmsWindow - 1])
                  
         return RMSData    
 

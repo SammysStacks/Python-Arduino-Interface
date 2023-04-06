@@ -715,16 +715,15 @@ class saveExcelData(handlingExcelFormat):
         WB.remove(worksheet)
     
     def saveData(self, timePoints, signalData, experimentTimes, experimentNames, surveyAnswerTimes, surveyAnswersList, 
-                 surveyQuestions, subjectInformationAnswers, subjectInformationQuestions, dataHeaders, saveDataFolder, saveExcelName):
+                 surveyQuestions, subjectInformationAnswers, subjectInformationQuestions, dataHeaders, saveExcelPath):
         print("\n\tSaving raw signals")
         # ------------------------------------------------------------------ #
         # -------------------- Setup the excel document -------------------- #
         # Create the path to save the excel file.
-        os.makedirs(saveDataFolder, exist_ok=True) # Create Output File Directory to Save Data: If None Exists
-        excelFile = saveDataFolder + saveExcelName
+        os.makedirs(os.path.dirname(saveExcelPath), exist_ok=True) # Create Output File Directory to Save Data: If None Exists
         
         # Get the excel document.
-        WB, worksheet = self.getExcelDocument(excelFile, overwriteSave = False)
+        WB, worksheet = self.getExcelDocument(saveExcelPath, overwriteSave = False)
 
         # ------------------------------------------------------------------ #
         # -------------- Add experimental/subject information -------------- #
@@ -775,7 +774,7 @@ class saveExcelData(handlingExcelFormat):
         # ------------------------------------------------------------------ #
         # ------------------------ Save the document ----------------------- #  
         # Save as New Excel File
-        WB.save(excelFile)
+        WB.save(saveExcelPath)
         WB.close()
             
     def saveRawFeatures(self, rawFeatureTimesHolder, rawFeatureHolder, indivisualFeatureNames, featureOrder, experimentTimes, experimentNames,

@@ -182,7 +182,7 @@ class arduinoRead():
                 self.arduinoBuffer.extend(data)
 
 
-    def parseRead(self, byteArrayList, numChannels, maxVolt = 3.3, adcResolution = 1023, verbose = True):
+    def parseRead(self, byteArrayList, numChannels, maxVolt = 5, adcResolution = 1023, verbose = True):
         """Parse a read with time, volage data
 
         Parameters

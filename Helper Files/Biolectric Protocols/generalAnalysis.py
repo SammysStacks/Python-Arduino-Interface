@@ -1,77 +1,43 @@
 
-
 # -------------------------------------------------------------------------- #
 # ---------------------------- Imported Modules ---------------------------- #
 
 # Basic Modules
 import scipy
 import numpy as np
-# Filtering Modules
-from scipy.signal import savgol_filter
-# Matlab Plotting Modules
-import matplotlib.pyplot as plt
-# Feature Extraction Modules
-from scipy.stats import skew
-from scipy.stats import entropy
-from scipy.stats import kurtosis
 
 # Import Files
-import _filteringProtocols as filteringMethods # Import Files with Filtering Methods
-        
+import _globalProtocol
+
 # ---------------------------------------------------------------------------#
 # ---------------------------------------------------------------------------#
 
-class analysisProtocol:
+class generalProtocol(_globalProtocol.globalProtocol):
     
-    def __init__(self, numPointsPerBatch = 3000, moveDataFinger = 10, numChannels = 2, plottingClass = None):
-        # Input Parameters
-        self.numChannels = numChannels            # Number of Bioelectric Signals
-        self.numPointsPerBatch = numPointsPerBatch        # The X-Wdith of the Plot (Number of Data-Points Shown)
-        self.moveDataFinger = moveDataFinger      # The Amount of Data to Stream in Before Finding Peaks
-        self.plotStreamedData = plottingClass != None  # Plot the Data
-        self.plottingClass = plottingClass
-                
-        # Define the class with all the filtering methods
-        self.filteringMethods = filteringMethods.filteringMethods()
+    def __init__(self, numPointsPerBatch = 3000, moveDataFinger = 10, numChannels = 2, plottingClass = None, readData = None):
         # High Pass Filter Parameters
         self.dataPointBuffer = 5000        # A Prepended Buffer in the Filtered Data that Represents BAD Filtering; Units: Points
         self.cutOffFreq = [.01, 50]        # Optimal LPF Cutoff in Literatrue is 6-8 or 20 Hz (Max 35 or 50); I Found 25 Hz was the Best, but can go to 15 if noisy (small amplitude cutoff)
                 
-        # Prepare the Program to Begin Data Analysis
-        self.checkParams()              # Check to See if the User's Input Parameters Make Sense
-        self.resetGlobalVariables()     # Start with Fresh Inputs (Clear All Arrays/Values)
-                
-        # If Plotting, Define Class for Plotting Peaks
-        if self.plotStreamedData and numChannels != 0:
-            self.initPlotPeaks()
-        
-    def resetGlobalVariables(self):
-        # Data to Read in
-        self.data = [ [], [[] for channel in range(self.numChannels)] ]
-        
-        # General parameters
-        self.samplingFreq = None        # The Average Number of Points Steamed Into the Arduino Per Second; Depends on the User's Hardware; If NONE Given, Algorithm will Calculate Based on Initial Data
+        # Initialize common model class
+        super().__init__(numPointsPerBatch, moveDataFinger, numChannels, plottingClass, readData)
 
-        # Close Any Opened Plots
-        if self.plotStreamedData:
-            plt.close()
+    def resetAnalysisVariables(self):
+        pass
             
     def checkParams(self):
-        assert self.moveDataFinger < self.numPointsPerBatch, "You are Analyzing Too Much Data in a Batch. 'moveDataFinger' MUST be Less than 'numPointsPerBatch'"
-        
-    def setSamplingFrequency(self, startBPFindex):
-        # Caluclate the Sampling Frequency
-        self.samplingFreq = len(self.data[0][startBPFindex:])/(self.data[0][-1] - self.data[0][startBPFindex])
-        print("\n\tSetting Temperature Sampling Frequency to", self.samplingFreq)
-        print("\tFor Your Reference, If Data Analysis is Longer Than", self.moveDataFinger/self.samplingFreq, ", Then You Will NOT be Analyzing in Real Time")
-        
+        pass
+    
+    def setSamplingFrequencyParams(self):
+        pass
+
     def initPlotPeaks(self): 
         # Establish pointers to the figure
         self.fig = self.plottingClass.fig
-        axes = self.plottingClass.axes
+        axes = self.plottingClass.axes['general'][0]
 
         # Plot the Raw Data
-        yLimLow = 0; yLimHigh = 3.3; 
+        yLimLow = 0; yLimHigh = 5; 
         self.bioelectricDataPlots = []; self.bioelectricPlotAxes = []
         for channelIndex in range(self.numChannels):
             # Create Plots
@@ -127,7 +93,7 @@ class analysisProtocol:
 
             # Filter the Data: Low pass Filter and Savgol Filter
             filteredData = self.filteringMethods.bandPassFilter.butterFilter(yDataBuffer, self.cutOffFreq[1], self.samplingFreq, order = 3, filterType = 'low')
-            filteredData = savgol_filter(filteredData, 21, 2, mode='nearest', deriv=0)[-(endDataPointer - dataFinger + 1):]
+            filteredData = scipy.signal.savgol_filter(filteredData, 21, 2, mode='nearest', deriv=0)[-(endDataPointer - dataFinger + 1):]
             # Format data and timepoints
             timePoints = np.array(self.data[0][-len(filteredData):])
             filteredData = np.array(filteredData)
@@ -149,7 +115,8 @@ class analysisProtocol:
                 self.filteredBioelectricPlotAxes[channelIndex].set_xlim(timePoints[0], timePoints[-1]) 
             # --------------------------------------------------------------- #   
     
-    
+    def filterData(self):
+        pass    
     
     
     

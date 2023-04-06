@@ -18,9 +18,6 @@ import numpy as np
 from scipy.linalg import svd
 # Filtering Modules
 import scipy
-from scipy.signal import butter
-from scipy.signal import lfilter
-from scipy.signal import savgol_filter
 # Fourier Transform Modules
 from scipy.fft import rfft,rfftfreq
 from scipy.fft import irfft
@@ -42,32 +39,99 @@ class filteringMethods:
 
 class bandPassFilter:
     
-    def butterParams(self, cutoffFreq = [0.1, 7], samplingFreq = 800, order=3, filterType = 'band'):
+    def butterParams(self, cutoffFreq=[0.1, 7], samplingFreq=800, order=3, filterType='bandpass'):
+        """
+        Compute the filter coefficients for a Butterworth filter.
+
+        Parameters
+        ----------
+        cutoffFreq : list of float
+            Cutoff frequencies of the filter. If filterType is "band", this should be a list of two frequencies.
+            Otherwise, this should be a single frequency.
+        samplingFreq : float
+            Sampling frequency of the signal.
+        order : int
+            Order of the filter.
+        filterType : str
+            Type of filter. "low", "high", "band", or "notch".
+
+        Returns
+        -------
+        sos : ndarray
+            Second-order sections of the filter.
+        """
         nyq = 0.5 * samplingFreq
-        if filterType == "band":
+        if filterType == "bandpass":
+            if len(cutoffFreq) != 2:
+                raise ValueError("cutoffFreq must be a list of two frequencies for bandpass or bandstop filters.")
             normal_cutoff = [freq/nyq for freq in cutoffFreq]
         else:
             normal_cutoff = cutoffFreq / nyq
-        sos = butter(order, normal_cutoff, btype = filterType, analog = False, output='sos')
+
+        sos = scipy.signal.butter(order, normal_cutoff, btype=filterType, analog=False, output='sos')
         return sos
     
-    def butterFilter(self, data, cutoffFreq, samplingFreq, order = 3, filterType = 'band'):
-        sos = self.butterParams(cutoffFreq, samplingFreq, order, filterType)
-        return scipy.signal.sosfiltfilt(sos, data)
-    
-    def highPassFilter(self, inputData, Wp, Ws, Rp, Rs):
+    def butterFilter(self, data, cutoffFreq=[0.1, 7], samplingFreq=800, order=3, filterType='bandpass'):
         """
-        data: Data to Filter
-        f1: cutOffFreqPassThrough
-        f3: cutOffFreqBand
-        Rp: attDB (0.1)
-        Rs: cutOffDB (30)
-        samplingFreq: Frequecy You Take Data
-        """            
-        [n, wn] = scipy.signal.cheb1ord(Wp/math.pi, Ws/math.pi, Rp, Rs)
-        [bz1, az1] = scipy.signal.cheby1(n, Rp, Wp/math.pi, 'High')
-        filteredData = lfilter(bz1, az1, inputData)
+        Apply a Butterworth filter to a signal.
+
+        Parameters
+        ----------
+        data : ndarray
+            Input signal to be filtered.
+        cutoffFreq : list of float
+            Cutoff frequencies of the filter. If filterType is "band", this should be a list of two frequencies.
+            Otherwise, this should be a single frequency. Default is [0.1, 7].
+        samplingFreq : float
+            Sampling frequency of the signal. Default is 800.
+        order : int
+            Order of the filter. Default is 3.
+        filterType : str
+            Type of filter. "low", "high", "band", or "notch". Default is "band".
+
+        Returns
+        -------
+        filteredData : ndarray
+            Output filtered signal.
+        """
+        sos = self.butterParams(cutoffFreq, samplingFreq, order, filterType)
+        filteredData = scipy.signal.sosfiltfilt(sos, data)
         return filteredData
+    
+    def high_pass_filter(self, data_to_filter, sampling_freq, passband_edge, stopband_edge, passband_ripple, stopband_attenuation):
+        """
+        Applies a Chebyshev type I high-pass filter to the input data.
+    
+        Parameters:
+        -----------
+        data_to_filter : array-like
+            Input data to filter.
+        passband_edge : float
+            Passband edge frequency in Hz.
+        stopband_edge : float
+            Stopband edge frequency in Hz.
+        passband_ripple : float
+            Maximum allowed passband ripple in decibels.
+        stopband_attenuation : float
+            Minimum required stopband attenuation in decibels.
+    
+        Returns:
+        --------
+        filtered_data : array-like
+            Filtered data.
+        """
+        # Calculate filter order and cutoff frequency
+        nyq_freq = 0.5 * sampling_freq
+        Wp = passband_edge / nyq_freq
+        Ws = stopband_edge / nyq_freq
+        n, wn = scipy.signal.cheb1ord(Wp, Ws, passband_ripple, stopband_attenuation)
+        
+        # Design filter and apply to data
+        bz, az = scipy.signal.cheby1(n, passband_ripple, Wp, 'highpass')
+        filtered_data = scipy.signal.lfilter(bz, az, data_to_filter)
+        
+        return filtered_data
+
     
 # -------------------------------------------------------------------------- #
 # ------------------- Fourier Transform Filtering Methods ------------------ #
@@ -98,7 +162,7 @@ class fourierFilter:
 class savgolFilter:
     
     def savgolFilter(self, noisyData, window_length, polyorder, deriv = 0, mode='nearest'):
-        return savgol_filter(noisyData, window_length, polyorder, deriv = deriv)
+        return scipy.signal.savgol_filter(noisyData, window_length, polyorder, deriv = deriv)
     
 # -------------------------------------------------------------------------- #
 # -------------------------- SVD Filtering Methods ------------------------- #

@@ -17,44 +17,62 @@ from datetime import datetime
 # Plotting
 import matplotlib
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator # added 
 
 # Folder with Data Aquisition Files
 sys.path.append('Helper Files/Biolectric Protocols/')
 sys.path.append('Biolectric Protocols/')
 # Import Bioelectric Analysis Files
-from generalAnalysis import analysisProtocol
+from emgAnalysis import emgProtocol
+from eogAnalysis import eogProtocol
+from eegAnalysis import eegProtocol
+from gsrAnalysis import gsrProtocol
+from generalAnalysis import generalProtocol
+from temperatureAnalysis import tempProtocol
 
 # Import Modules to Read in Data
 import arduinoInterface as arduinoInterface      # Functions to Read in Data from Arduino
 
 class plotDataTopLevel():
     
-    def __init__(self, numChannels):
+    def __init__(self, numChannels, channelDist, analysisOrder):
         matplotlib.use('Qt5Agg') # Set Plotting GUI Backend   
         # use ggplot style for more sophisticated visuals
         plt.style.use('seaborn-poster')
         
         # Specify Figure aesthetics
         figWidth = 20; figHeight = 15;
-        self.fig, self.axes = plt.subplots(numChannels, 2, sharey=False, sharex = True, gridspec_kw={'hspace': 0},
+        self.fig, axes = plt.subplots(numChannels, 2, sharey=False, sharex = False, gridspec_kw={'hspace': 0},
                                      figsize=(figWidth, figHeight))
-
+        if numChannels == 1:
+            axes = np.array([axes])
+            
+        self.axes = {}
+        # Distribute the axes to their respective sensor
+        for biomarkerInd in range(len(analysisOrder)):
+            biomarkerType = analysisOrder[biomarkerInd]
+            streamingChannels = channelDist[biomarkerInd]
+            self.axes[biomarkerType] = axes[streamingChannels]
+                    
+        # # Add experiment information to the plot
+        # self.experimentText = "Current experiment: General data collection"
+        
         # Create surrounding figure
         self.fig.add_subplot(111, frame_on=False)
         plt.tick_params(labelcolor="none", bottom=False, left=False)
         # Add figure labels
-        plt.suptitle('Streaming Data', fontsize = 22, x = 0.525, fontweight = "bold")
+        plt.suptitle('Streaming Biolectric Data for Stress Prediction', fontsize = 22, x = 0.525, fontweight = "bold")
         plt.xlabel("Time (Seconds)", labelpad = 15)
         # Add axis column labels
-        # colHeaders = ["Raw signals", "Filtered signals"]
-        # for ax, colHeader in zip(self.axes[0], colHeaders):
-        #     ax.set_title(colHeader, fontsize=17, pad = 15)
+        colHeaders = ["Raw signals", "Filtered signals"]
+        for ax, colHeader in zip(axes[0], colHeaders):
+            ax.set_title(colHeader, fontsize=17, pad = 15)
         
-        # # Remove overlap in yTicks
-        # nbins = len(self.axes[0][0].get_yticklabels())
-        # for axRow in self.axes:
-        #     for ax in axRow:
-        #         ax.yaxis.set_major_locator(MaxNLocator(nbins=nbins, prune='both'))  
+        # Remove overlap in yTicks
+        nbins = len(axes[0][0].get_yticklabels())
+        for axRow in axes:
+            for ax in axRow:
+                ax.yaxis.set_major_locator(MaxNLocator(nbins=nbins, prune='both'))  
 
         # Finalize figure spacing
         plt.tight_layout()
@@ -69,28 +87,62 @@ class plotDataTopLevel():
 
 class streamingFunctions():
     
-    def __init__(self, mainSerialNum, numPointsPerBatch, moveDataFinger, plotStreamedData, streamingOrder):
+    def __init__(self, mainSerialNum, therapySerialNum, actionControl, numPointsPerBatch, moveDataFinger, streamingOrder, biomarkerOrder, plotStreamedData):
+
         # Store the arduinoRead Instance
         if mainSerialNum != None:
             self.arduinoRead = arduinoInterface.arduinoRead(mainSerialNum = mainSerialNum)
             self.mainArduino = self.arduinoRead.mainArduino
         
         # Variables that specify order of signals.
+        self.biomarkerOrder = biomarkerOrder            # The order the features from each analysis are spliced together.
         self.streamingOrder = [streamingType.lower() for streamingType in streamingOrder] # The order the sensors are streamed in. Ex: ['eog', 'eog', 'eeg', 'gsr']
+        self.analysisOrder = list(dict.fromkeys(streamingOrder)) # The order that the biomarkers will be analyzed
         # Store General Streaming Parameters.
         self.moveDataFinger = moveDataFinger        # The Minimum Number of NEW Data Points to Plot/Analyze in Each Batch;
         self.numPointsPerBatch = numPointsPerBatch  # The Number of Data Points to Display to the User at a Time;
         self.plotStreamedData = plotStreamedData    # Graph the Data to Show Incoming Signals + Analysis
         self.numChannels = len(self.streamingOrder) # The number of signals being streamed in.
+        self.storeIncomingData = True
 
+        # Variables that rely on the sensor data's order
+        self.numChannelDist = [0 for _ in range(len(self.analysisOrder))] # Track the number of channels used by each sensor
+        self.channelDist = [[] for _ in range(len(self.analysisOrder))]   # Track the order (its index) each sensor comes in
+        # Populate the variables, accounting for the order.
+        for analysisInd in range(len(self.analysisOrder)):
+            biomarkerType = self.analysisOrder[analysisInd]
+            # Organize the streaming channels by their respective biomarker.
+            self.numChannelDist[analysisInd] = self.streamingOrder.count(biomarkerType)
+            self.channelDist[analysisInd] = np.where(np.array(self.streamingOrder) == biomarkerType)[0]
+        
+            # Check That We Segmented the Channels Correctly
+            assert self.numChannelDist[analysisInd] == len(self.channelDist[analysisInd]), "numChannelDist: " + str(self.numChannelDist) + "; channelDist: " + str(self.channelDist)
+        # Check That We Segmented the Channels Correctly
+        assert sum(self.numChannelDist) == self.numChannels, "The streaming map is missing values: " + str(self.streamingOrder)
+        
         self.plottingClass = None;
         if self.plotStreamedData:
-            self.plottingClass = plotDataTopLevel(self.numChannels)
+            self.plottingClass = plotDataTopLevel(self.numChannels, self.channelDist, self.analysisOrder)
         # Create Pointer to the Analysis Classes
-        self.analysisProtocol = analysisProtocol(self.numPointsPerBatch, self.moveDataFinger, self.numChannels, self.plottingClass)
+        self.emgAnalysis = emgProtocol(self.numPointsPerBatch, self.moveDataFinger, self.numChannelDist[self.analysisOrder.index('emg')], self.plottingClass, self) if 'emg' in self.analysisOrder else None
+        self.eogAnalysis = eogProtocol(self.numPointsPerBatch, self.moveDataFinger, self.numChannelDist[self.analysisOrder.index('eog')], self.plottingClass, self) if 'eog' in self.analysisOrder else None
+        self.eegAnalysis = eegProtocol(self.numPointsPerBatch, self.moveDataFinger, self.numChannelDist[self.analysisOrder.index('eeg')], self.plottingClass, self) if 'eeg' in self.analysisOrder else None
+        self.gsrAnalysis = gsrProtocol(self.numPointsPerBatch, self.moveDataFinger, self.numChannelDist[self.analysisOrder.index('gsr')], self.plottingClass, self) if 'gsr' in self.analysisOrder else None
+        self.tempAnalysis = tempProtocol(self.numPointsPerBatch, self.moveDataFinger, self.numChannelDist[self.analysisOrder.index('temp')], self.plottingClass, self) if 'temp' in self.analysisOrder else None
+        self.generalAnalysis = generalProtocol(self.numPointsPerBatch, self.moveDataFinger, self.numChannelDist[self.analysisOrder.index('general')], self.plottingClass, self) if 'general' in self.analysisOrder else None
+        self.analysisProtocols = {
+            'emg': self.emgAnalysis,
+            'eog': self.eogAnalysis,
+            'eeg': self.eegAnalysis,
+            'gsr': self.gsrAnalysis,
+            'temp': self.tempAnalysis,
+            'general': self.generalAnalysis
+        }
         
-        # A list of all analyses, keeping the order they are streamed in.
-        self.analysisList  = [self.analysisProtocol];
+        self.analysisList  = [];
+        # Generate a list of all analyses, keeping the order they are streamed in.
+        for biomarkerType in self.analysisOrder:
+            self.analysisList.append(self.analysisProtocols[biomarkerType]) 
         
         # Initialize mutable variables
         self.resetGlobalVariables()
@@ -121,7 +173,7 @@ class streamingFunctions():
         
         return stopTimeStreaming
     
-    def recordData(self, maxVolt = 3.3, adcResolution = 1023):
+    def recordData(self, maxVolt = 5, adcResolution = 1023):
         # Read in at least one point
         rawReadsList = []
         while (int(self.mainArduino.in_waiting) > 0 or len(rawReadsList) == 0):
@@ -170,9 +222,9 @@ class streamingFunctions():
 
 class mainArduinoRead(streamingFunctions):
 
-    def __init__(self, mainSerialNum, numPointsPerBatch, moveDataFinger, streamingOrder, featureOrder, plotStreamedData):
+    def __init__(self, mainSerialNum, actionControl, numPointsPerBatch, moveDataFinger, streamingOrder, biomarkerOrder, plotStreamedData):
         # Create Pointer to Common Functions
-        super().__init__(mainSerialNum, numPointsPerBatch, moveDataFinger, plotStreamedData, streamingOrder)
+        super().__init__(mainSerialNum, None, actionControl, numPointsPerBatch, moveDataFinger, streamingOrder, biomarkerOrder, plotStreamedData)
 
     def analyzeBatchData(self, dataFinger, lastTimePoint, predictionModel, actionControl):
         # Analyze the current data
@@ -185,7 +237,7 @@ class mainArduinoRead(streamingFunctions):
         # Move the dataFinger pointer to analyze the next batch of data
         return dataFinger + self.moveDataFinger
             
-    def streamArduinoData(self, stopTimeStreaming, predictionModel = None, actionControl = None, numTrashReads=100, numPointsPerRead=300):
+    def streamArduinoData(self, maxVolt, adcResolution, stopTimeStreaming, predictionModel = None, actionControl = None, numTrashReads=100, numPointsPerRead=300):
         """Stop Streaming When we Obtain `stopTimeStreaming` from Arduino"""
         print("Streaming in Data from the Arduino")
         # Reset Global Variable in Case it Was Previously Populated
@@ -195,12 +247,12 @@ class mainArduinoRead(streamingFunctions):
         self.stopTimeStreaming = self.setupArduinoStream(stopTimeStreaming)
         timePoints = self.analysisList[0].data[0]
         dataFinger = 0
-        
+    
         try:
             # Loop Through and Read the Arduino Data in Real-Time
             while len(timePoints) == 0 or (timePoints[-1] - timePoints[0]) < self.stopTimeStreaming:
                 # Stream in the Latest Data
-                self.recordData()
+                self.recordData(maxVolt, adcResolution)
 
                 # When enough data has been collected, analyze the new data in batches.
                 while len(timePoints) - dataFinger >= self.numPointsPerBatch:
