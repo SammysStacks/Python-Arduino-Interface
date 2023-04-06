@@ -94,6 +94,10 @@ class bandPassFilter:
         filteredData : ndarray
             Output filtered signal.
         """
+        # If no data to filter, return data
+        if cutoffFreq == None: 
+            return data
+        
         sos = self.butterParams(cutoffFreq, samplingFreq, order, filterType)
         filteredData = scipy.signal.sosfiltfilt(sos, data)
         return filteredData
@@ -120,6 +124,10 @@ class bandPassFilter:
         filtered_data : array-like
             Filtered data.
         """
+        # If no data to filter, return data
+        if passband_edge == None: 
+            return data_to_filter
+        
         # Calculate filter order and cutoff frequency
         nyq_freq = 0.5 * sampling_freq
         Wp = passband_edge / nyq_freq

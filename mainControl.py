@@ -39,7 +39,7 @@ if __name__ == "__main__":
     # ---------------------------------------------------------------------- #
     
     # Protocol Switches: Only the First True Variable Excecutes
-    readDataFromExcel = True      # Analyze Data from Excel File called 'testDataExcelFile' on Sheet Number 'testSheetNum'
+    readDataFromExcel = True        # Analyze Data from Excel File called 'testDataExcelFile' on Sheet Number 'testSheetNum'
     streamData = False              # Stream in Data from the Board and Analyze;
     
     # User Options During the Run: Any Number Can be True
@@ -65,7 +65,7 @@ if __name__ == "__main__":
         adcResolution = 1023
         
         saveRawSignals = True        # Saves the Data in 'readData.data' in an Excel Named 'saveExcelName'
-        saveExcelPath = "./Data/EMG/2023-04.xlsx"   # Data Folder to Save the Excel Data; MUST END IN '/'
+        saveExcelPath = "./Data/EMG/2023-04-06 EMG 2.xlsx"   # Data Folder to Save the Excel Data; MUST END IN '/'
     else:
         boardSerialNum = None
         saveRawSignals = False
@@ -79,7 +79,7 @@ if __name__ == "__main__":
         
         testSheetNum = 0   # The Sheet/Tab Order (Zeroth/First/Second/Third) on the Bottom of the Excel Document
         # testDataExcelFile = "./Test.xlsx" # Path to the Test Data
-        testDataExcelFile = "./Data/EMG/2023-04.xlsx"   # Data Folder to Save the Excel Data; MUST END IN '/'
+        testDataExcelFile = "./Data/EMG - Yadong/2023-04-06 EMG Trial 2.xlsx"   # Data Folder to Save the Excel Data; MUST END IN '/'
 
     # ---------------------------------------------------------------------- #
     # ---------------------------------------------------------------------- #

@@ -102,6 +102,6 @@ void loop() {
     currentSecond = 0;
     // Add Delay for WiFi to Send Data
     totalLoopTime = micros() - startLoopTime;
-    if (1000 - 100 > totalLoopTime) {delayMicroseconds(1000 - totalLoopTime);}
+    //if (1000 - 100 > totalLoopTime) {delayMicroseconds(1000 - totalLoopTime);}
 }
 
