@@ -58,7 +58,7 @@ if __name__ == "__main__":
     # Save the Data as an Excel File (For Later Use)
     if streamData:
         # Arduino Streaming Parameters
-        boardSerialNum = '85735313333351E040A0'   # Board's Serial Number (port.serial_number)
+        boardSerialNum = '24230303537351415011'   # Board's Serial Number (port.serial_number)
         stopTimeStreaming = 60*180   # If Float/Int: The Number of Seconds to Stream Data; If String, it is the TimeStamp to Stop (Military Time) as "Hours:Minutes:Seconds:MicroSeconds"
         
         saveRawSignals = True        # Saves the Data in 'readData.data' in an Excel Named 'saveExcelName'
