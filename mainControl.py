@@ -65,7 +65,7 @@ if __name__ == "__main__":
         adcResolution = 1023
         
         saveRawSignals = True        # Saves the Data in 'readData.data' in an Excel Named 'saveExcelName'
-        saveExcelPath = "./Data/ECG - Yadong/2023-04-06 ECG Trial 3.xlsx"   # Data Folder to Save the Excel Data; MUST END IN '/'
+        saveExcelPath = "./Data/ECG - Yadong/2023-04-06 ECG Trial 4.xlsx"   # Data Folder to Save the Excel Data; MUST END IN '/'
     else:
         boardSerialNum = None
         saveRawSignals = False
