@@ -39,8 +39,8 @@ if __name__ == "__main__":
     # ---------------------------------------------------------------------- #
     
     # Protocol Switches: Only the First True Variable Excecutes
-    readDataFromExcel = True        # Analyze Data from Excel File called 'testDataExcelFile' on Sheet Number 'testSheetNum'
-    streamData = False              # Stream in Data from the Board and Analyze;
+    readDataFromExcel = False        # Analyze Data from Excel File called 'testDataExcelFile' on Sheet Number 'testSheetNum'
+    streamData = True              # Stream in Data from the Board and Analyze;
     
     # User Options During the Run: Any Number Can be True
     plotStreamedData = True        # Graph the Data to Show Incoming Signals + Analysis
@@ -57,15 +57,15 @@ if __name__ == "__main__":
     # Save the Data as an Excel File (For Later Use)
     if streamData:
         # Arduino Streaming Parameters
-        boardSerialNum = '24230303537351E080F1'   # Board's Serial Number (port.serial_number)
-        stopTimeStreaming = 60*180   # If Float/Int: The Number of Seconds to Stream Data; If String, it is the TimeStamp to Stop (Military Time) as "Hours:Minutes:Seconds:MicroSeconds"
+        boardSerialNum = '24230303537351415011'   # Board's Serial Number (port.serial_number)
+        stopTimeStreaming = 60*1   # If Float/Int: The Number of Seconds to Stream Data; If String, it is the TimeStamp to Stop (Military Time) as "Hours:Minutes:Seconds:MicroSeconds"
         
         # Arduino parameters.
         maxVolt = 5
         adcResolution = 1023
         
         saveRawSignals = True        # Saves the Data in 'readData.data' in an Excel Named 'saveExcelName'
-        saveExcelPath = "./Data/EMG/2023-04-06 EMG 2.xlsx"   # Data Folder to Save the Excel Data; MUST END IN '/'
+        saveExcelPath = "./Data/ECG - Yadong/2023-04-06 ECG Trial 3.xlsx"   # Data Folder to Save the Excel Data; MUST END IN '/'
     else:
         boardSerialNum = None
         saveRawSignals = False

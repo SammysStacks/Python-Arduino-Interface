@@ -16,8 +16,8 @@ class generalProtocol(_globalProtocol.globalProtocol):
     
     def __init__(self, numPointsPerBatch = 3000, moveDataFinger = 10, numChannels = 2, plottingClass = None, readData = None):
         # Filter Parameters
-        self.dataPointBuffer = 5000        # A Prepended Buffer in the Filtered Data that Represents BAD Filtering; Units: Points
-        self.cutOffFreq = [70, None]        # Optimal LPF Cutoff in Literatrue is 6-8 or 20 Hz (Max 35 or 50); I Found 25 Hz was the Best, but can go to 15 if noisy (small amplitude cutoff)
+        self.dataPointBuffer = 50000        # A Prepended Buffer in the Filtered Data that Represents BAD Filtering; Units: Points
+        self.cutOffFreq = [0.05, 20]        # Optimal LPF Cutoff in Literatrue is 6-8 or 20 Hz (Max 35 or 50); I Found 25 Hz was the Best, but can go to 15 if noisy (small amplitude cutoff)
         # High-pass filter parameters.
         self.stopband_edge = 1           # Common values for EEG are 1 Hz and 2 Hz. If you need to remove more noise, you can choose a higher stopband edge frequency. If you need to preserve the signal more, you can choose a lower stopband edge frequency.
         self.passband_ripple = 0.1       # Common values for EEG are 0.1 dB and 0.5 dB. If you need to remove more noise, you can choose a lower passband ripple. If you need to preserve the signal more, you can choose a higher passband ripple.
@@ -41,7 +41,7 @@ class generalProtocol(_globalProtocol.globalProtocol):
         axes = self.plottingClass.axes['general'][0]
 
         # Plot the Raw Data
-        yLimLow = 0; yLimHigh = 5; 
+        yLimLow = 0; yLimHigh = 3.3; 
         self.bioelectricDataPlots = []; self.bioelectricPlotAxes = []
         for channelIndex in range(self.numChannels):
             # Create Plots
@@ -59,7 +59,7 @@ class generalProtocol(_globalProtocol.globalProtocol):
             self.bioelectricPlotAxes[channelIndex].set_ylabel("Incoming Data", fontsize=13, labelpad = 10)
             
         # Create the Data Plots
-        yLimLow = -2.5; yLimHigh = 2.5; 
+        yLimLow = -1.65; yLimHigh = 1.65; 
         self.filteredBioelectricDataPlots = []
         self.filteredBioelectricPlotAxes = [] 
         for channelIndex in range(self.numChannels):
@@ -98,8 +98,8 @@ class generalProtocol(_globalProtocol.globalProtocol):
 
             # Filter the Data: Low pass Filter and Savgol Filter
             filteredData = self.filteringMethods.bandPassFilter.butterFilter(yDataBuffer, self.cutOffFreq[1], self.samplingFreq, order = 3, filterType = 'low')
-            filteredData = self.filteringMethods.bandPassFilter.high_pass_filter(yDataBuffer, self.samplingFreq, self.cutOffFreq[0], self.stopband_edge, self.passband_ripple, self.stopband_attenuation)
-            # filteredData = scipy.signal.savgol_filter(filteredData, 21, 2, mode='nearest', deriv=0)[-(endDataPointer - dataFinger + 1):]
+            filteredData = self.filteringMethods.bandPassFilter.high_pass_filter(filteredData, self.samplingFreq, self.cutOffFreq[0], self.stopband_edge, self.passband_ripple, self.stopband_attenuation)
+            # filteredData = scipy.signal.savgol_filter(filteredData, 15, 2, mode='nearest', deriv=0)[-(endDataPointer - dataFinger + 1):]
             # Format data and timepoints
             timePoints = np.array(self.data[0][-len(filteredData):])
             filteredData = np.array(filteredData)
