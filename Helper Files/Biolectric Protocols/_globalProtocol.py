@@ -97,7 +97,7 @@ class globalProtocol(abc.ABC):
         raise NotImplementedError("Must override in child") 
         
     @abc.abstractmethod
-    def filterData(self):
+    def filterData(self, timePoints, data):
         """ Create contract for child class method """
         raise NotImplementedError("Must override in child") 
         

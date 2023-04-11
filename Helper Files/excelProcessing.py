@@ -38,6 +38,7 @@ class handlingExcelFormat:
         self.rawSignals_Sheetname = "Raw Signals; File 0"
         self.subjectInfo_SheetName = "Subject Info; File 0"
         self.rawFeatures_AppendedSheetName = " Features; File 0"
+        self.filteredSignals_Sheetname = "Filtered Signals; File 0"
         self.experimentalInfo_SheetName = "Experimental Info; File 0"
         
         # Hardcoded folder names
@@ -290,7 +291,7 @@ class getExcelData(handlingExcelFormat):
             elif self.subjectInfo_SheetName in excelSheet.title:
                 subjectInformationAnswers, subjectInformationQuestions = self.extractSubjectInfo(excelSheet, subjectInformationAnswers, subjectInformationQuestions)
             # Extract Time and Current Data from the File
-            else:
+            elif self.rawSignals_Sheetname in excelSheet.title:
                 compiledRawData = self.extractRawSignalData(excelSheet, startDataCol = 1, endDataCol = 1 + numberOfChannels, data = compiledRawData)
         
         # Check the data integrity
@@ -713,38 +714,17 @@ class saveExcelData(handlingExcelFormat):
             worksheet = WB.create_sheet(self.emptySheetName) # Add Sheet
         # Remove empty page
         WB.remove(worksheet)
-    
-    def saveData(self, timePoints, signalData, experimentTimes, experimentNames, surveyAnswerTimes, surveyAnswersList, 
-                 surveyQuestions, subjectInformationAnswers, subjectInformationQuestions, dataHeaders, saveExcelPath):
-        print("\n\tSaving raw signals")
-        # ------------------------------------------------------------------ #
-        # -------------------- Setup the excel document -------------------- #
-        # Create the path to save the excel file.
-        os.makedirs(os.path.dirname(saveExcelPath), exist_ok=True) # Create Output File Directory to Save Data: If None Exists
         
-        # Get the excel document.
-        WB, worksheet = self.getExcelDocument(saveExcelPath, overwriteSave = False)
-
-        # ------------------------------------------------------------------ #
-        # -------------- Add experimental/subject information -------------- #
-        # Add subject information
-        self.addSubjectInfo(WB, worksheet, subjectInformationAnswers, subjectInformationQuestions)
-        worksheet = WB.create_sheet(self.emptySheetName) # Add 
-        # Add experimental information
-        self.addExperimentInfo(WB, worksheet, experimentTimes, experimentNames, surveyAnswerTimes, surveyAnswersList, surveyQuestions)
-        worksheet = WB.create_sheet(self.emptySheetName) # Add Sheet
-        
-        # ------------------------------------------------------------------ #
-        # ---------------------- Add data to document ---------------------- #     
+    def addSignalData(self, WB, worksheet, timePoints, signalData, dataHeaders, dataType = "Raw"):
         # Get the Header for the Data
         header = ["Time (Seconds)"]
-        header.extend([dataHeader.upper() + " Raw Data" for dataHeader in dataHeaders])
-        
+        header.extend([dataHeader.upper() + " " + dataType + " Data" for dataHeader in dataHeaders])
+                
         # Loop through/save all the data in batches of maxAddToexcelSheet.
         for firstIndexInFile in range(0, len(timePoints), self.maxAddToexcelSheet):
             startTimer = timer.time()
             # Add the information to the page
-            worksheet.title = self.rawSignals_Sheetname
+            worksheet.title = self.rawSignals_Sheetname if dataType.lower() == "raw" else self.filteredSignals_Sheetname
             worksheet.append(header)  # Add the header labels to this specific file.
                         
             # Loop through all data to be saved within this sheet in the excel file.
@@ -770,6 +750,34 @@ class saveExcelData(handlingExcelFormat):
         # Remove empty page
         if worksheet.title == self.emptySheetName:
             WB.remove(worksheet)
+    
+    def saveData(self, timePoints, signalData, filteredData, experimentTimes, experimentNames, surveyAnswerTimes, surveyAnswersList, 
+                 surveyQuestions, subjectInformationAnswers, subjectInformationQuestions, dataHeaders, saveExcelPath):
+        print("\n\tSaving raw signals")
+        # ------------------------------------------------------------------ #
+        # -------------------- Setup the excel document -------------------- #
+        # Create the path to save the excel file.
+        os.makedirs(os.path.dirname(saveExcelPath), exist_ok=True) # Create Output File Directory to Save Data: If None Exists
+        
+        # Get the excel document.
+        WB, worksheet = self.getExcelDocument(saveExcelPath, overwriteSave = False)
+
+        # ------------------------------------------------------------------ #
+        # -------------- Add experimental/subject information -------------- #
+        # Add subject information
+        self.addSubjectInfo(WB, worksheet, subjectInformationAnswers, subjectInformationQuestions)
+        worksheet = WB.create_sheet(self.emptySheetName) # Add empty sheet
+        # Add experimental information
+        self.addExperimentInfo(WB, worksheet, experimentTimes, experimentNames, surveyAnswerTimes, surveyAnswersList, surveyQuestions)
+        worksheet = WB.create_sheet(self.emptySheetName) # Add empty sheet
+        
+        # ------------------------------------------------------------------ #
+        # ---------------------- Add data to document ---------------------- #     
+        # Add raw data to the document.
+        self.addSignalData(WB, worksheet, timePoints, signalData, dataHeaders, dataType = "Raw")
+        worksheet = WB.create_sheet(self.emptySheetName) # Add empty sheet 
+        # Add raw data to the document.
+        self.addSignalData(WB, worksheet, timePoints, filteredData, dataHeaders, dataType = "Filtered")
         
         # ------------------------------------------------------------------ #
         # ------------------------ Save the document ----------------------- #  

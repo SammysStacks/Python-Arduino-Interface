@@ -17,7 +17,7 @@ class generalProtocol(_globalProtocol.globalProtocol):
     def __init__(self, numPointsPerBatch = 3000, moveDataFinger = 10, numChannels = 2, plottingClass = None, readData = None):
         # Filter Parameters
         self.dataPointBuffer = 50000        # A Prepended Buffer in the Filtered Data that Represents BAD Filtering; Units: Points
-        self.cutOffFreq = [0.05, 20]        # Optimal LPF Cutoff in Literatrue is 6-8 or 20 Hz (Max 35 or 50); I Found 25 Hz was the Best, but can go to 15 if noisy (small amplitude cutoff)
+        self.cutOffFreq = [0.05, 20]        # Low and high pass filter.
         # High-pass filter parameters.
         self.stopband_edge = 1           # Common values for EEG are 1 Hz and 2 Hz. If you need to remove more noise, you can choose a higher stopband edge frequency. If you need to preserve the signal more, you can choose a lower stopband edge frequency.
         self.passband_ripple = 0.1       # Common values for EEG are 0.1 dB and 0.5 dB. If you need to remove more noise, you can choose a lower passband ripple. If you need to preserve the signal more, you can choose a higher passband ripple.
@@ -90,19 +90,13 @@ class generalProtocol(_globalProtocol.globalProtocol):
             # Band Pass Filter to Remove Noise
             startBPFindex = max(dataFinger - self.dataPointBuffer, 0)
             yDataBuffer = self.data[1][channelIndex][startBPFindex:dataFinger + self.numPointsPerBatch].copy()
-            endDataPointer = startBPFindex + len(yDataBuffer) - 1
             
             # Get the Sampling Frequency from the First Batch (If Not Given)
             if not self.samplingFreq:
                 self.setSamplingFrequency(startBPFindex)
 
             # Filter the Data: Low pass Filter and Savgol Filter
-            filteredData = self.filteringMethods.bandPassFilter.butterFilter(yDataBuffer, self.cutOffFreq[1], self.samplingFreq, order = 3, filterType = 'low')
-            filteredData = self.filteringMethods.bandPassFilter.high_pass_filter(filteredData, self.samplingFreq, self.cutOffFreq[0], self.stopband_edge, self.passband_ripple, self.stopband_attenuation)
-            # filteredData = scipy.signal.savgol_filter(filteredData, 15, 2, mode='nearest', deriv=0)[-(endDataPointer - dataFinger + 1):]
-            # Format data and timepoints
-            timePoints = np.array(self.data[0][-len(filteredData):])
-            filteredData = np.array(filteredData)
+            _, filteredData, _ = self.filterData([], yDataBuffer)
             # --------------------------------------------------------------- #
                     
             # ------------------- Plot Biolectric Signals ------------------- #
@@ -115,14 +109,19 @@ class generalProtocol(_globalProtocol.globalProtocol):
                 # Plot Raw Bioelectric Data (Slide Window as Points Stream in)
                 self.bioelectricDataPlots[channelIndex].set_data(timePoints, newYData)
                 self.bioelectricPlotAxes[channelIndex].set_xlim(timePoints[0], timePoints[-1])
-                            
+
                 # Plot the Filtered + Digitized Data
                 self.filteredBioelectricDataPlots[channelIndex].set_data(timePoints, filteredData[-len(timePoints):])
                 self.filteredBioelectricPlotAxes[channelIndex].set_xlim(timePoints[0], timePoints[-1]) 
             # --------------------------------------------------------------- #   
     
-    def filterData(self):
-        pass    
+    def filterData(self, timePoints, data):
+        # Filter the Data: Low pass Filter and Savgol Filter
+        filteredData = self.filteringMethods.bandPassFilter.butterFilter(data, self.cutOffFreq[1], self.samplingFreq, order = 3, filterType = 'low')
+        filteredData = self.filteringMethods.bandPassFilter.high_pass_filter(filteredData, self.samplingFreq, self.cutOffFreq[0], self.stopband_edge, self.passband_ripple, self.stopband_attenuation)
+        # filteredData = scipy.signal.savgol_filter(filteredData, 15, 2, mode='nearest', deriv=0)[-(endDataPointer - dataFinger + 1):]
+
+        return [], filteredData, []
     
     
     

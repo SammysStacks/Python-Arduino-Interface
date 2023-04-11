@@ -39,11 +39,11 @@ if __name__ == "__main__":
     # ---------------------------------------------------------------------- #
     
     # Protocol Switches: Only the First True Variable Excecutes
-    readDataFromExcel = False        # Analyze Data from Excel File called 'testDataExcelFile' on Sheet Number 'testSheetNum'
-    streamData = True              # Stream in Data from the Board and Analyze;
+    readDataFromExcel = True        # Analyze Data from Excel File called 'testDataExcelFile' on Sheet Number 'testSheetNum'
+    streamData = False              # Stream in Data from the Board and Analyze;
     
     # User Options During the Run: Any Number Can be True
-    plotStreamedData = True        # Graph the Data to Show Incoming Signals + Analysis
+    plotStreamedData = False        # Graph the Data to Show Incoming Signals + Analysis
     
     # ---------------------------------------------------------------------- #
     
@@ -79,7 +79,7 @@ if __name__ == "__main__":
         
         testSheetNum = 0   # The Sheet/Tab Order (Zeroth/First/Second/Third) on the Bottom of the Excel Document
         # testDataExcelFile = "./Test.xlsx" # Path to the Test Data
-        testDataExcelFile = "./Data/EMG - Yadong/2023-04-06 EMG Trial 2.xlsx"   # Data Folder to Save the Excel Data; MUST END IN '/'
+        testDataExcelFile = "./Data/ECG - Yadong/2023-04-06 ECG Trial 4.xlsx"   # Data Folder to Save the Excel Data; MUST END IN '/'
 
     # ---------------------------------------------------------------------- #
     # ---------------------------------------------------------------------- #
@@ -108,7 +108,22 @@ if __name__ == "__main__":
     timePoints = np.array(readData.analysisList[0].data[0])
     if "emg" in streamingOrder: emgReadings = np.array(readData.emgAnalysis.data[1][0])
     if "general" in streamingOrder: generalReadings = np.array(readData.generalAnalysis.data[1][0])
-        
+    
+    # Get the streaming data
+    streamingData = []; filteredDataAll = []
+    # For each analysis performed.
+    for analysis in readData.analysisList:
+        # For each dataset (channel) in that analysis.
+        for analysisChannelInd in range(len(analysis.data[1])):
+            # Record the raw and filtered data.
+            rawData = analysis.data[1][analysisChannelInd]
+            filteredTime, filteredData, goodIndicesMask = analysis.filterData(timePoints, rawData)
+            # Store the raw and filtered data.
+            streamingData.append(rawData)
+            filteredDataAll.append(filteredData)
+    filteredDataAll = np.array(filteredDataAll)
+    streamingData = np.array(streamingData)
+            
     # ---------------------------------------------------------------------- #
     # -------------------------- Save Input data --------------------------- #
     # Save the Data in Excel
@@ -116,14 +131,9 @@ if __name__ == "__main__":
         # Double Check to See if User Wants to Save the Data
         verifiedSave = input("Are you Sure you Want to Save the Data (Y/N): ")
         if verifiedSave.upper() == "Y":
-            # Get the streaming data
-            streamingData = []
-            for analysis in readData.analysisList:
-                for analysisChannelInd in range(len(analysis.data[1])):
-                    streamingData.append(np.array(analysis.data[1][analysisChannelInd]))
             # Initialize Class to Save the Data and Save
             saveInputs = excelDataProtocol.saveExcelData()
-            saveInputs.saveData(timePoints, streamingData, [], [], [], [], [],
+            saveInputs.saveData(timePoints, streamingData, filteredDataAll, [], [], [], [], [],
                                 [], [], streamingOrder, saveExcelPath)
         else:
             print("User Chose Not to Save the Data")

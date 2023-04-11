@@ -143,8 +143,11 @@ class emgProtocol(_globalProtocol.globalProtocol):
         self.fig.tight_layout(pad=2.0);
         self.fig.canvas.draw()
         
-    def filterData(self):
-        pass
+    def filterData(self, timePoints, data):
+        filteredData = self.highPassFilter(data)
+        filteredTime = timePoints.copy()
+        
+        return filteredTime, filteredData, np.ones(len(filteredTime))
     
     def analyzeData(self, dataFinger, predictionModel = None, actionControl = None):
         
@@ -161,14 +164,16 @@ class emgProtocol(_globalProtocol.globalProtocol):
             # Find New Points That Need Filtering
             totalPreviousPointsRMS = max(1 + math.floor((dataFinger + len(timePoints) - self.moveDataFinger - self.rmsWindow) / self.stepSize), 0) if dataFinger else 0
             dataPointerRMS = self.stepSize*totalPreviousPointsRMS
+            numNewDataForRMS = dataFinger + len(timePoints) - dataPointerRMS
             
             # Get the Sampling Frequency from the First Batch (If Not Given)
             if not self.samplingFreq:
                 self.setSamplingFrequency(startFilterPointer)
                 
             # Filter the data.
-            numNewDataForRMS = dataFinger + len(timePoints) - dataPointerRMS
-            filteredData = self.highPassFilter(dataBuffer)[-(numNewDataForRMS):]   
+            _, filteredData, _ = self.filterData(timePoints, dataBuffer)
+            # Remove the filter buffer. Only consider new data.
+            filteredData = filteredData[-(numNewDataForRMS):]
             # -------------------------------------------------------------- #
     
             # --------------------- Root Mean Squared ----------------------- #
