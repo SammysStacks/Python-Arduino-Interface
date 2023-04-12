@@ -39,39 +39,7 @@ class filteringMethods:
 
 class bandPassFilter:
     
-    def butterParams(self, cutoffFreq=[0.1, 7], samplingFreq=800, order=3, filterType='bandpass'):
-        """
-        Compute the filter coefficients for a Butterworth filter.
-
-        Parameters
-        ----------
-        cutoffFreq : list of float
-            Cutoff frequencies of the filter. If filterType is "band", this should be a list of two frequencies.
-            Otherwise, this should be a single frequency.
-        samplingFreq : float
-            Sampling frequency of the signal.
-        order : int
-            Order of the filter.
-        filterType : str
-            Type of filter. "low", "high", "band", or "notch".
-
-        Returns
-        -------
-        sos : ndarray
-            Second-order sections of the filter.
-        """
-        nyq = 0.5 * samplingFreq
-        if filterType == "bandpass":
-            if len(cutoffFreq) != 2:
-                raise ValueError("cutoffFreq must be a list of two frequencies for bandpass or bandstop filters.")
-            normal_cutoff = [freq/nyq for freq in cutoffFreq]
-        else:
-            normal_cutoff = cutoffFreq / nyq
-
-        sos = scipy.signal.butter(order, normal_cutoff, btype=filterType, analog=False, output='sos')
-        return sos
-    
-    def butterFilter(self, data, cutoffFreq=[0.1, 7], samplingFreq=800, order=3, filterType='bandpass'):
+    def butterFilter(self, data, cutoffFreq=[0.1, 7], samplingFreq=800, order=3, filterType='bandpass', fastFilt = False):
         """
         Apply a Butterworth filter to a signal.
 
@@ -87,7 +55,7 @@ class bandPassFilter:
         order : int
             Order of the filter. Default is 3.
         filterType : str
-            Type of filter. "low", "high", "band", or "notch". Default is "band".
+            Type of filter. "low", "high", "bandpass", or "notch". Default is "bandpass".
 
         Returns
         -------
@@ -97,12 +65,22 @@ class bandPassFilter:
         # If no data to filter, return data
         if cutoffFreq == None: 
             return data
+            
+        nyq = 0.5 * samplingFreq
+        if filterType == "bandpass" and len(cutoffFreq) != 2:
+            raise ValueError("cutoffFreq must be a list of two frequencies for bandpass or bandstop filters.")
+        normal_cutoff = np.asarray(cutoffFreq) / nyq
         
-        sos = self.butterParams(cutoffFreq, samplingFreq, order, filterType)
-        filteredData = scipy.signal.sosfiltfilt(sos, data)
+        if fastFilt:
+            sos = scipy.signal.butter(order, normal_cutoff, btype=filterType, analog=False, output='sos')
+            filteredData = scipy.signal.sosfiltfilt(sos, data)
+        else:
+            b, a = scipy.signal.butter(order, normal_cutoff, btype=filterType, analog=False, output='ba')
+            filteredData = scipy.signal.filtfilt(b, a, data)
+
         return filteredData
     
-    def high_pass_filter(self, data_to_filter, sampling_freq, passband_edge, stopband_edge, passband_ripple, stopband_attenuation):
+    def high_pass_filter(self, data_to_filter, sampling_freq, passband_edge, stopband_edge, passband_ripple, stopband_attenuation, fastFilt = False):
         """
         Applies a Chebyshev type I high-pass filter to the input data.
     
@@ -136,7 +114,10 @@ class bandPassFilter:
         
         # Design filter and apply to data
         bz, az = scipy.signal.cheby1(n, passband_ripple, Wp, 'highpass')
-        filtered_data = scipy.signal.lfilter(bz, az, data_to_filter)
+        if fastFilt:
+            filtered_data = scipy.signal.lfilter(bz, az, data_to_filter)
+        else:
+            filtered_data = scipy.signal.filtfilt(bz, az, data_to_filter)
         
         return filtered_data
 
